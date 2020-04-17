@@ -1,0 +1,12 @@
+<xs:schema>
+<xs:complexType name="guestType">
+<xs:element name="f_name" type="xs:string"/>
+<xs:element name="l_name" type="xs:string"/>
+<xs:element name="id_number" type="xs:integer"/>
+<xs:element name="city" type="xs:string"/>
+<xs:element name="street_house_number" type="xs:string"/>
+<xs:element name="visits_number" type="xs:integer"/>
+</xs:complexType>
+<xs:element name="guests" type="guestType"/>
+
+</xs:schema>

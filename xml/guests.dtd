@@ -1,0 +1,11 @@
+<!ELEMENT gus(gus)> 
+<!ELEMENT  guests (guest_id,f_name
+,l_name,id_number,city,street_house_number,visits_number>)>
+<!ELEMENT guest_id(#PCDATA)>
+<!ELEMENT f_name(#PCDATA)>
+<!ELEMENT l_name(#PCDATA)>
+<!ELEMENT id_number(#PCDATA)>
+<!ELEMENT city(#PCDATA)>
+<!ELEMENT street_house_number(#PCDATA)>
+<!ELEMENT visits_number(#PCDATA)>
+<! ATTLIST guests guest_id #REQUIRED>
