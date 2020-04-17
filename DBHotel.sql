@@ -221,3 +221,96 @@ BEGIN
             UPDATE summary WHERE guest_id = :OLD.guest_id SET how_long = how_long - how_much, how_many_times = how_many_times - 1;
     END CASE;
 END;
+
+
+--جدول يوزر ريمايندر للتريقير.
+ 
+CREATE TABLE USER_REMINDERS
+(
+	GUEST_ID number(10),
+	REMINDER_TEXT varchar2(200),
+	REMINDER_DATE date,
+	STATUS varchar2(10)
+);
+
+-- تريقر لاضافه الاي دي حق القيست  وايضا الهوية حقته 
+
+CREATE OR REPLACE TRIGGER trg_after_insert
+AFTER INSERT
+  on guests
+  FOR EACH ROW 
+
+DECLARE
+counter number(2);
+reminder_text varchar2(200);
+
+BEGIN
+counter := 0;
+reminder_text := '';
+
+  IF(:NEW.guest_id = '' OR :NEW.guest_id is null) THEN
+  reminder_text := 'Please insert guest id into system. ';
+  counter := counter+1;
+  END IF;  
+  
+  IF(:NEW.id_number = '' OR :NEW.id_number is null) THEN
+  reminder_text := reminder_text || 'Please insert your id number into system.';
+  counter := counter+1;
+  END IF;  
+
+  -- اذا واحد منهم غير موجود الكاونتر راح يكون اكبر من صفر وراح يضيف هالشيء للتيبل حق الريمايندر
+  IF(counter>0) THEN
+  INSERT INTO USER_REMINDERS VALUES (:NEW.GUEST_ID,reminder_text,sysdate+3,'PENDING');
+  END IF;
+    
+END;
+/
+
+
+---- باكج لاضافه العميل ويتأكد من الغرف الفاضية ويعمل له حجز
+---- The package Specification
+CREATE OR REPLACE PACKAGE gus_rev AS  
+--هنا يضيف العميل
+   PROCEDURE add_guest(guest_id number, fname varchar2, lname varchar2, id_number varchar2, city varchar2, street_house_number varchar2)
+--يتأكد اذا فيه غرف فاضية
+PROCEDURE write_free_rooms(d1 DATE, d2 DATE)
+--يحجز للعميل
+ PROCEDURE add_reservations(fid_number varchar2, id_room number,status varchar2, start_date DATE, end_date DATE,note varchar2)
+
+END gus_rev; 
+/
+
+---- The package Body
+CREATE OR REPLACE PACKAGE BODY gus_rev AS  
+--
+  PROCEDURE add_guest(guest_id number, fname varchar2, lname varchar2, id_number varchar2, city varchar2, street_house_number varchar2)
+  IS
+  BEGIN
+    INSERT into
+    guests VALUES(guest_id, fname, lname , id_number, city, street_house_number, 1);
+END add_guest;
+--
+ PROCEDURE write_free_rooms(d1 DATE, d2 DATE)
+  IS
+  room_number varchar2(5);
+  BEGIN
+    SELECT rooms.rnumber INTO room_number FROM reservations, rooms WHERE reservations.id_room = rooms.room_id AND d1 <= start_date AND d2 >= end_date;
+END write_free_rooms;
+--
+PROCEDURE add_reservations(fid_number varchar2, id_room number,status varchar2, start_date DATE, end_date DATE,note varchar2)
+  IS
+    guest_id number(3);
+    fguest_id number(3);
+    visits_number number(4);
+    reservation_id number(4);
+  BEGIN
+    SELECT COUNT(*) INTO reservation_id FROM reservations;
+    fguest_id := find_guest_by_id(fid_number);
+    SELECT visits_number into visits_number FROM guests WHERE fguest_id = guests.guest_id;
+    visits_number := visits_number + 1;
+    INSERT into reservations values ((reservation_id + 1), fguest_id, id_room, status, start_date, end_date,null, null, null, note);
+    UPDATE guests SET visits_number = visits_number WHERE guests.guest_id = fguest_id;
+  END add_reservations;
+
+END gus_rev; 
+/
