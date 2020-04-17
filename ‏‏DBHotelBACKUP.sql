@@ -1,8 +1,7 @@
-
 CREATE TABLE rooms(
   room_id number(3) PRIMARY KEY,
-  rnumber varchar2(5),
-  class varchar2(30), -- vip & normal يكون ضيف عادي او مهم
+  number varchar2(5),
+  class varchar2(30), -- vip & normal
   price_per_night number(3),
   discount number(1),
   number_single_beds number(2),
@@ -13,8 +12,8 @@ CREATE TABLE rooms(
 CREATE TABLE reservations(
   reservation_id number(3) PRIMARY KEY,
   guest_id number(2) CONSTRAINT guest_id NOT NULL,
-  id_room number(2) ,
-  status varchar2(30), --like ordered , ordered, waiting (when there is no free room) حالة الحجز 
+  id_room number(2) CONSTRAINT room_id,
+  status varchar2(30), -- ordered (about 200), allocated, waiting (when there is no free room), to be settled (if the room does not respond)
   start_date DATE, 
   end_date DATE,
   date_of_arrival_at_the_hotel DATE,
@@ -46,12 +45,11 @@ INSERT into guests values (4, 'Yousef', 'Ahmed', '11055345','Dammam','Azezyah 12
 INSERT into reservations  values (1, 2, 1, 'ordered', TO_DATE('2020/07/09', 'yyyy/mm/dd'),TO_DATE('2020/07/16', 'yyyy/mm/dd'),null , 0, 0, '');
 INSERT into reservations  values (2, 1, null, 'assigned', TO_DATE('2020/05/11', 'yyyy/mm/dd'),TO_DATE('2020/05/16', 'yyyy/mm/dd'),TO_DATE('2020/05/11', 'yyyy/mm/dd'), 500, 0, 'paid');
 
--- يضيف عميل جديد
+-- enter a new guest
 CREATE OR REPLACE PROCEDURE add_guest(guest_id number, fname varchar2, lname varchar2, id_number varchar2, city varchar2, street_house_number varchar2)
   IS
   BEGIN
-    INSERT into
-    guests VALUES(guest_id, fname, lname , id_number, city, street_house_number, 1);
+    INSERT into guests VALUES(guest_id, f_name, l_name , id_number, city, street_house_number, 1);
 END add_guest;
 
 BEGIN
@@ -60,13 +58,12 @@ END;
 
 SELECT * FROM guests;
 
---حجز غرف فارغة من التاريخ
--- D1 الى D2
+--writing out rooms between date d1 and d2
 CREATE OR REPLACE PROCEDURE write_free_rooms(d1 DATE, d2 DATE)
   IS
   room_number varchar2(5);
   BEGIN
-    SELECT rooms.rnumber INTO room_number FROM reservations, rooms WHERE reservations.id_room = rooms.room_id AND d1 <= start_date AND d2 >= end_date;
+    SELECT rooms.number INTO room_number FROM reservations, rooms WHERE reservations.id_room = rooms.room_id AND d1 <= start_date AND d2 >= end_date;
 END write_free_rooms;
 
 
@@ -74,7 +71,7 @@ BEGIN
     write_free_rooms(TO_DATE('2020/07/09', 'yyyy/mm/dd'), TO_DATE('2020/07/16', 'yyyy/mm/dd'));
 END;
 
---البحث عن العميل عن طريق الاي دي نمبر ويرجعه لنا العميل
+--support function
 CREATE OR REPLACE FUNCTION find_guest_by_id(fid_number varchar2)
   Return number is 
     id_1 number(3);
@@ -82,27 +79,24 @@ CREATE OR REPLACE FUNCTION find_guest_by_id(fid_number varchar2)
      SELECT guests.guest_id INTO id_1 FROM guests WHERE id_number = fid_number;
     RETURN id_1;
   END find_guest_by_id;
-  
 
-  --عمل حجز في الداتابيز 
+  --make a reservation 
 CREATE OR REPLACE PROCEDURE add_reservations(fid_number varchar2, id_room number,status varchar2, start_date DATE, end_date DATE,note varchar2)
   IS
     guest_id number(3);
-    fguest_id number(3);
     visits_number number(4);
     reservation_id number(4);
   BEGIN
     SELECT COUNT(*) INTO reservation_id FROM reservations;
     fguest_id := find_guest_by_id(fid_number);
-    SELECT visits_number into visits_number FROM guests WHERE fguest_id = guests.guest_id;
-    visits_number := visits_number + 1;
+    SELECT visits_number into visits_number1 FROM guests WHERE fguest_id = guests.guest_id;
+    visits_number1 := visits_number1 + 1;
     INSERT into reservations values ((reservation_id + 1), fguest_id, id_room, status, start_date, end_date,null, null, null, note);
-    UPDATE guests SET visits_number = visits_number WHERE guests.guest_id = fguest_id;
+    UPDATE guests SET visits_number = visits_number1 WHERE guests.guest_id = fguest_id;
   END add_reservations;
 
-
--- اذا العميل وصل نسوي ريكويست
-CREATE OR REPLACE PROCEDURE hotel_request(fid_number varchar2, arrival_date date) --تاريخ الوصول للهوتيل
+  -- when guest arrive
+CREATE OR REPLACE PROCEDURE hotel_request(fid_number varchar2, arrival_date date) --arrival date at hotel
   is 
    guest_id number(3);
   begin
@@ -110,8 +104,8 @@ CREATE OR REPLACE PROCEDURE hotel_request(fid_number varchar2, arrival_date date
    UPDATE reservations SET reservations.date_of_arrival_at_the_hotel = date_of_arrival_at_the_hotel WHERE guest_id = guest_id;
 END hotel_request;
 
---حذف الحجز
-CREATE OR REPLACE PROCEDURE cancel_reservations(fid_number varchar2)
+--delete reservations
+CREATE OR REPLACE PROCEDURE cancel_reservations(id_number varchar2)
   is 
     guest_id number(3);
   begin
@@ -119,20 +113,20 @@ CREATE OR REPLACE PROCEDURE cancel_reservations(fid_number varchar2)
     DELETE FROM reservations WHERE reservations.guest_id = guest_id;
 END cancel_reservations;
 
--- يرجع لنا عدد الايام اللي قعد فيها العميل في الفندق 
+-- auxiliary function date difference | ما فهمت ايش فايدتها للامانة نحاول نفهمها لو ما فهمناها نشيلها
 CREATE OR REPLACE FUNCTION diff_date(guest_id1 number)
     return number is
         starting date;
         ending date;
     begin
-        SELECT start_date into starting FROM reservations WHERE reservations.guest_id = guest_id1;
-        SELECT end_date into ending FROM reservations WHERE reservations.guest_id = guest_id1;
+        SELECT data_starting into starting FROM reservations WHERE reservations.guest_id = guest_id1;
+        SELECT data_ending into ending FROM reservations WHERE reservations.guest_id = guest_id1;
     return ending - starting;
 END;
 
 
--- يجهز الفاتورة للعميل (ولو كان عميل دائم يعطيه ديسكاونت) ا
-CREATE OR REPLACE PROCEDURE bill(fid_number number, fadditional_cost number)
+-- prepare a bill for the guest (by giving him a discount if he is a frequent guest)
+CREATE OR REPLACE PROCEDURE bill(fid_number number, additional_cost number)
     is 
     guest_id1 number(3);
     id_room1 number(3);
@@ -140,17 +134,16 @@ CREATE OR REPLACE PROCEDURE bill(fid_number number, fadditional_cost number)
     cost number(6);
     visits_number number(3);
     price_per_day1 number(4);
-    additional_cost number(5);
   begin
     guest_id1 := find_guest_by_id(fid_number);
     number_of_days := diff_date(guest_id1);
     SELECT id_room INTO id_room1 FROM reservations WHERE reservations.guest_id = guest_id1;
     SELECT visits_number INTO visits_number FROM guests WHERE guest_id = guest_id1;
-        IF visits_number > 5 THEN additional_cost := fadditional_cost * 0.6; -- خصم
-        ELSIF visits_number > 10 THEN additional_cost := fadditional_cost * 0.5; -- خصم
+        IF visits_number > 5 THEN additional_cost := additional_cost * 0.6; -- discount
+        ELSIF visits_number > 10 THEN additional_cost := additional_cost * 0.5; -- discount
         END IF;
-        SELECT price_per_night INTO price_per_day1 FROM rooms,reservations WHERE reservations.id_room = id_room1;
-    cost := number_of_days * price_per_day1 + fadditional_cost;
+        SELECT price_per_night INTO price_per_day1 FROM rooms WHERE reservations.id_room = id_room1;
+    cost := number_of_days * price_per_day1 + additional_cost;
     UPDATE reservations SET room_cost = cost, note = (note + ', bill created');
     DBMS_OUTPUT.PUT_LINE('The total cost of the room:  '||cost);
     EXCEPTION
@@ -158,7 +151,7 @@ CREATE OR REPLACE PROCEDURE bill(fid_number number, fadditional_cost number)
             DBMS_OUTPUT.PUT_LINE('there is no data to delete');
 END bill;
 
---  الناس اللي عملت حجز وما وصلت المتأخرين بشكل  عام
+--  people who have made reservations and have not yet arrived on that day
 CREATE OR REPLACE PROCEDURE late_person
     is
         v_date date;
@@ -167,45 +160,50 @@ CREATE OR REPLACE PROCEDURE late_person
     SELECT guests.f_name, guests.l_name, reservations.reservation_id FROM guests, reservations WHERE guests.guest_id = reservations.guest_id AND reservations.start_date >= v_date AND reservations.date_of_arrival_at_the_hotel != null;
 END late_person;
 
--- بروسيجر لكل عميل في الهوتيل: يحسب كم مره جا وكم يوم قاعد لكن حاليا مو راضيه تشتغل 
---ويحط المعلومات ذي كلها في تيبل فارغ اللي هوا
--- Summary (guest id, name, surname, how many times, how long)
+-- procedure for each hotel guest: calculates how many times and for how long he stayed at the hotel
+--and inserts this information into an empty table: Summary (guest id, name, surname, how many times, how long)
     
 CREATE TABLE summary(
     guest_id number(3) PRIMARY KEY,
-    f_name varchar2(20),
-    l_name varchar2(30),
+    fname varchar2(20),
+    lname varchar2(30),
     how_many_times number(3),
     how_long number(4)
 );
---مو راضي يشتغل   
+    
 CREATE OR REPLACE PROCEDURE staying_at_hotel
     is
     how_long1 number(4);
     begin
-        FOR guest_id1 IN ((select COUNT(guest_id) FROM guests)) loop
-            INSERT INTO summary (guest_id, f_name, l_name, how_many_times)
-            SELECT f_name, l_name, visits_number FROM guests WHERE guest_id = guest_id1;
-            how_long1 := diff_date(guest_id1);
-        END loop;
+        FOR _counter IN 1..(SELECT COUNT(guest_id) FROM guests) LOOP
+            INSERT INTO summary (guest_id, fname, lname, how_many_times) SELECT f_name, l_name, visits_number FROM guests WHERE guest_id = _counter;
+            how_long1 := diff_date(_counter);
+            INSERT INTO summary
+        END LOOP;
 END;
 
--- هذا البروسيجر يشيل كل الحجوزات اللي اكثر من 5 سنين
+--this procedure removes all reservations for people who stays older than five years ago
 CREATE OR REPLACE PROCEDURE delete_old_reservations
     is
     l_date date;
     begin
-    l_date := ADD_MONTHS (SYSDATE, -5*12); -- قبل 5 سنين
+    l_date := ADD_MONTHS (SYSDATE, -5*12); -- 5 years ago
     DELETE FROM reservations WHERE reservations.end_date < l_date;
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
     DBMS_OUTPUT.PUT_LINE('there is no data to delete');
 END;
 
+-- trigger checking if start date is earlier than end date
+CREATE OR REPLACE TRIGGER is_the_date_correct
+    BEFORE INSERT OR UPDATE OR DELETE OF start_date, end_date 
+    ON reservations
+    FOR EACH ROW
+    BEGIN
+        :NEW.start_date < :NEW.end_date;
+    END;
 
--- في مشكلة في التريقر ذا مو عارف ليش مع انه المفروض صح
--- التريقر - التريقر ذا يحدث الخانتين
--- how_many_times and how_long
+-- trigger - the trigger updates the fields how_many_times and how_long
 CREATE OR REPLACE TRIGGER field_update
     BEFORE INSERT OR UPDATE OR DELETE OF how_many_times, how_long
     ON summary
@@ -221,3 +219,52 @@ BEGIN
             UPDATE summary WHERE guest_id = :OLD.guest_id SET how_long = how_long - how_much, how_many_times = how_many_times - 1;
     END CASE;
 END;
+
+
+--Make a VIP room reservation for one night. If there is no free room
+--meeting the expectations of guests among people who have made a reservation for a room
+--meeting the VIP specification, select one of them - not having VIP status and replace it
+--reservation for a VIP reservation. Canceled reservation for a room replace with
+--ordered reservation.
+
+
+--listing of free rooms d1 for VIP
+CREATE OR REPLACE PROCEDURE writing_out_free_vip_rooms(d1 DATE, requirement varchar2)
+  IS
+  room_number varchar2(5);
+  room_class varchar(20);
+  BEGIN
+    SELECT rooms.number, rooms.class INTO room_number, room_class FROM reservations, rooms WHERE reservations.id_room = rooms.room_id AND d1 <= start_date AND d1 >= end_date AND rooms.special_addition = requirement;
+    DBMS_OUTPUT.PUT_LINE(room_number || ' ' || room_class);  
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('no data available');
+END writing_out_free_vip_rooms;
+
+-- main procedure for adding vip
+CREATE OR REPLACE PROCEDURE vip_reservation(day date, requirement varchar2, number_single_beds number, number_double_beds number, id_number varchar2) -- requirement: pool, bar, balcony etc.
+IS 
+day1 date;
+number_of_beds number(1);
+number_of_double_beds number(1);
+room_number varchar2(5);
+room_class varchar(20);
+id_room number(4);
+reservation_id number(4);
+guest_id number(4);
+BEGIN
+    SELECT rooms.number, rooms.class, rooms.room_id INTO room_number, room_class, id_room FROM reservations, rooms WHERE reservations.id_room = rooms.room_id AND d1 < reservations.start_date AND d1 >= reservations.end_date AND rooms.special_addition = requirement AND ROWNUM = 1 ;
+    DBMS_OUTPUT.PUT_LINE(room_number || ' ' || room_class);
+    IF room_class = 'vip' THEN
+        add_reservations(fid_number,id_room, 'ordered',day, day, 'vip');
+    ELSIF room_class != 'vip' THEN
+        room_class := 'vip';
+    ELSE
+        SELECT rooms.number, reservations.reservation_id, rooms.room_id, guests.guest_id INTO room_number, reservation_id, id_room, guest_id FROM rooms, reservations, guests WHERE reservations.id_room = rooms.room_id AND rooms.special_addition = requirement AND ROWNUM = 1 ;
+         add_reservations(fid_number, id_room, 'ordered',day, day, 'vip');
+         UPDATE reservations SET status = 'waiting' WHERE reservations.guest_id = guest_id;
+    END IF;
+    EXCEPTION
+WHEN NO_DATA_FOUND THEN
+    DBMS_OUTPUT.PUT_LINE('no data available');
+END vip_reservation;
