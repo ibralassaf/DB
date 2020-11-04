@@ -1,6 +1,7 @@
 # [DB Hotel Proejct](/)
 
 Project for [Database 2](/) Hotel booking 🏨.
+Check the 📄 documentation.pdf for more info
 
 # Participants
 
