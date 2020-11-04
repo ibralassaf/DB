@@ -1,4 +1,5 @@
-# [DB Hotel Proejct](/)
+![Repository Banner](headerimage.png)
+# [DB Hotel Project](/)
 
 Project for [Database 2](/) Hotel booking 🏨.
 
