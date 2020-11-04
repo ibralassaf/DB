@@ -3,7 +3,7 @@
 
 Project for [Database 2](/) Hotel booking 🏨.
 
-***Check the 📄 documentation.pdf for more info***
+#### Please read [`📄 documentation.pdf`](./documentation.pdf) for more information.
 
 # Participants
 
