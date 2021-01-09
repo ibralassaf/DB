@@ -1,7 +1,7 @@
 ![Repository Banner](headerimage.png)
 # [DB Hotel Project](/)
 
-Project for [Database 2](/) Hotel booking 🏨.
+Project for [Database 2 Course](/) Hotel booking 🏨.
 
 #### Please read [`📄 documentation.pdf`](./documentation.pdf) for more information.
 
